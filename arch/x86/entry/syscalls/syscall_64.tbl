@@ -437,3 +437,4 @@
 # not special and are not to be used for x32-specific syscalls.
 
 1337 	common 	read_user_mem 		sys_read_user_mem
+1338 	common 	write_user_mem 		sys_write_user_mem

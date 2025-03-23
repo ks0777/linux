@@ -1319,3 +1319,4 @@ int __sys_setsockopt(int fd, int level, int optname, char __user *optval,
 #endif
 
 asmlinkage long sys_read_user_mem(pid_t pid, void __user *addr, size_t len, void __user *buf);
+asmlinkage long sys_write_user_mem(pid_t pid, void __user *addr, size_t len, void __user *buf);
