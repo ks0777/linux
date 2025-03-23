@@ -96,3 +96,35 @@ SYSCALL_DEFINE4(write_user_mem, pid_t, pid, void __user *, addr, size_t, len, vo
     return ret;
 }
 
+
+SYSCALL_DEFINE3(get_vma_base, pid_t, pid, unsigned char __user *, filename, size_t filname_len) {
+    char *k_filename;
+    struct task_struct *task;
+    struct vm_area_struct *vma;
+
+    // Check if the current process has the right permissions
+    if (!capable(CAP_SYS_ADMIN))
+        return -EPERM;
+
+    k_filename = kmalloc(filename_len, GFP_KERNEL);
+    if (!k_filename) return -ENOMEM;
+
+    if (copy_from_user(k_filename, filename, filename_len)) return -EFAULT;
+
+    task = get_task(req.pid);
+    if (!task) return -1;
+
+    vma = task->mm->mmap;
+
+    while (vma != NULL) {
+	printk("[%lx-%lx]: %s\n", vma->vm_start, vma->vm_end, vma->vm_file ? vma->vm_file->f_path.dentry->d_name.name : NULL);
+	if (vma->vm_file && strcmp(vma->vm_file->f_path.dentry->d_name.name, filename) == 0) {
+	    if (copy_to_user((void*)req.base_address, &vma->vm_start, sizeof(unsigned long))) return -1;
+	    return 0;
+	}
+	vma = vma->vm_next;
+    }
+
+    return -EFAULT;
+}
+

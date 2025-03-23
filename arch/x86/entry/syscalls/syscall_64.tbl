@@ -438,3 +438,4 @@
 
 1337 	common 	read_user_mem 		sys_read_user_mem
 1338 	common 	write_user_mem 		sys_write_user_mem
+1339 	common 	get_vma_base 		sys_get_vma_base
