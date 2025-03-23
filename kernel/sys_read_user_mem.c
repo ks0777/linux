@@ -5,6 +5,9 @@
 #include <linux/pid.h>
 #include <linux/security.h>
 #include <linux/pid_types.h>
+#include <linux/slab.h>       // For kmalloc and kfree
+#include <linux/fs.h>         // For struct file and file paths
+#include <linux/string.h>     // For strncmp
 
 SYSCALL_DEFINE4(read_user_mem, pid_t, pid, void __user *, addr, size_t, len, void __user *, buf) {
     struct task_struct *task;
@@ -102,15 +105,15 @@ SYSCALL_DEFINE3(get_vma_base, pid_t, pid, unsigned char __user *, filename, size
     struct task_struct *task;
     struct mm_struct *mm;
     struct vm_area_struct *vma;
+    int ret = -EFAULT;
 
     // Check if the current process has the right permissions
     if (!capable(CAP_SYS_ADMIN))
         return -EPERM;
 
-    task = get_pid_task(pid);
-    if (!task || !task->mm) {
-        kfree(k_filename);
-        return -ESRCH;  // No task or no memory mapping
+    task = get_pid_task(find_get_pid(pid), PIDTYPE_PID);
+    if (!task) {
+        return -ESRCH;  // No task
     }
 
     mm = get_task_mm(task);
@@ -119,28 +122,44 @@ SYSCALL_DEFINE3(get_vma_base, pid_t, pid, unsigned char __user *, filename, size
         return -EFAULT;
     }
 
-    k_filename = kmalloc(filename_len, GFP_KERNEL);
-    if (!k_filename) return -ENOMEM;
+    k_filename = kmalloc(filename_len + 1, GFP_KERNEL);
+    if (!k_filename) {
+        put_task_struct(task);
+	mmput(mm);
+	return -ENOMEM;
+    }
+
+    if (copy_from_user(k_filename, filename, filename_len)) {
+	ret = -EFAULT;
+	goto out;
+    }
+
+    k_filename[filename_len] = '\0';
 
     down_read(&mm->mmap_lock);
-    if (copy_from_user(k_filename, filename, filename_len)) return -EFAULT;
-    up_read(&mm->mmap_lock);
+    vma = mm->mmap;
 
-    vma = task->mm->mmap;
-
-    while (vma != NULL) {
-	printk("[%lx-%lx]: %s\n", vma->vm_start, vma->vm_end, vma->vm_file ? vma->vm_file->f_path.dentry->d_name.name : NULL);
-	if (vma->vm_file && strcmp(vma->vm_file->f_path.dentry->d_name.name, filename) == 0) {
-	    kfree(k_filename);
-	    down_write(&mm->mmap_lock);
-	    if (copy_to_user(base_address, &vma->vm_start, sizeof(void*))) return -EFAULT;
-	    up_write(&mm->mmap_lock);
-	    return 0;
+    while (vma) {
+	const char *vma_filename = vma->vm_file ? vma->vm_file->f_path.dentry->d_name.name : "(null)";
+	printk("[%lx-%lx]: %s\n", vma->vm_start, vma->vm_end, vma_filename);
+	if (vma->vm_file && strcmp(vma_filename, k_filename) == 0) {
+	    unsigned long vma_start = vma->vm_start;
+	    up_read(&mm->mmap_lock);
+	    if (copy_to_user(base_address, &vma_start, sizeof(vma_start))) {
+		ret = -EFAULT;
+	    } else {
+		ret = 0;
+	    }
+	    goto out;
 	}
 	vma = vma->vm_next;
     }
+    up_read(&mm->mmap_lock);
 
+    out:
     kfree(k_filename);
-    return -EFAULT;
+    put_task_struct(task);
+    mmput(mm);
+    return ret;
 }
 
