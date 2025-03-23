@@ -1317,3 +1317,5 @@ int __sys_getsockopt(int fd, int level, int optname, char __user *optval,
 int __sys_setsockopt(int fd, int level, int optname, char __user *optval,
 		int optlen);
 #endif
+
+asmlinkage long sys_read_user_mem(pid_t pid, void __user *addr, size_t len, void __user *buf);
