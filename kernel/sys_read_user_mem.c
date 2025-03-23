@@ -12,6 +12,8 @@ SYSCALL_DEFINE4(read_user_mem, pid_t, pid, void __user *, addr, size_t, len, voi
     void *kernel_buffer;
     int ret = -EFAULT;
 
+    printk("read_user_mem\tpid: %u\t addr: 0x%x\tlen: %u\t buf: 0x%x\n", pid, addr, len, buf);
+
     // Check if the current process has the right permissions
     if (!capable(CAP_SYS_ADMIN))
         return -EPERM;
@@ -54,6 +56,8 @@ SYSCALL_DEFINE4(write_user_mem, pid_t, pid, void __user *, addr, size_t, len, vo
     struct mm_struct *mm;
     void *kernel_buffer;
     int ret = -EFAULT;
+    
+    printk("write_user_mem\tpid: %u\t addr: 0x%x\tlen: %u\t buf: 0x%x\n", pid, addr, len, buf);
 
     // Check if the current process has the right permissions
     if (!capable(CAP_SYS_ADMIN))
