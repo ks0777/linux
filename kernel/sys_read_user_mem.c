@@ -97,34 +97,50 @@ SYSCALL_DEFINE4(write_user_mem, pid_t, pid, void __user *, addr, size_t, len, vo
 }
 
 
-SYSCALL_DEFINE3(get_vma_base, pid_t, pid, unsigned char __user *, filename, size_t filname_len) {
+SYSCALL_DEFINE3(get_vma_base, pid_t, pid, unsigned char __user *, filename, size_t, filename_len, void __user **, base_address) {
     char *k_filename;
     struct task_struct *task;
+    struct mm_struct *mm;
     struct vm_area_struct *vma;
 
     // Check if the current process has the right permissions
     if (!capable(CAP_SYS_ADMIN))
         return -EPERM;
 
+    task = get_pid_task(pid);
+    if (!task || !task->mm) {
+        kfree(k_filename);
+        return -ESRCH;  // No task or no memory mapping
+    }
+
+    mm = get_task_mm(task);
+    if (!mm) {
+        put_task_struct(task);
+        return -EFAULT;
+    }
+
     k_filename = kmalloc(filename_len, GFP_KERNEL);
     if (!k_filename) return -ENOMEM;
 
+    down_read(&mm->mmap_lock);
     if (copy_from_user(k_filename, filename, filename_len)) return -EFAULT;
-
-    task = get_task(req.pid);
-    if (!task) return -1;
+    up_read(&mm->mmap_lock);
 
     vma = task->mm->mmap;
 
     while (vma != NULL) {
 	printk("[%lx-%lx]: %s\n", vma->vm_start, vma->vm_end, vma->vm_file ? vma->vm_file->f_path.dentry->d_name.name : NULL);
 	if (vma->vm_file && strcmp(vma->vm_file->f_path.dentry->d_name.name, filename) == 0) {
-	    if (copy_to_user((void*)req.base_address, &vma->vm_start, sizeof(unsigned long))) return -1;
+	    kfree(k_filename);
+	    down_write(&mm->mmap_lock);
+	    if (copy_to_user(base_address, &vma->vm_start, sizeof(void*))) return -EFAULT;
+	    up_write(&mm->mmap_lock);
 	    return 0;
 	}
 	vma = vma->vm_next;
     }
 
+    kfree(k_filename);
     return -EFAULT;
 }
 
