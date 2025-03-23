@@ -100,7 +100,7 @@ SYSCALL_DEFINE4(write_user_mem, pid_t, pid, void __user *, addr, size_t, len, vo
 }
 
 
-SYSCALL_DEFINE3(get_vma_base, pid_t, pid, unsigned char __user *, filename, size_t, filename_len, void __user **, base_address) {
+SYSCALL_DEFINE4(get_vma_base, pid_t, pid, unsigned char __user *, filename, size_t, filename_len, void __user **, base_address) {
 	char *k_filename;
 	struct task_struct *task;
 	struct mm_struct *mm;
